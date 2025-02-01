@@ -1,0 +1,43 @@
+services:
+  inference:
+    container_name: inference
+    build:
+      context: .
+    command: gunicorn -w 4 -b 0.0.0.0:8011 app:app
+    ports:
+      - "8011:8011"
+    volumes:
+      - ./inference-data:/app/data
+  
+  updater:
+    container_name: updater
+    build: .
+    environment:
+      - INFERENCE_API_ADDRESS=http://inference:8011
+    command: >
+      sh -c "
+      while true; do
+        python -u /app/update_app.py;
+        sleep 300;  # 300 seconds (5 minutes)
+      done
+      "
+    depends_on:
+      inference:
+        condition: service_started
+  
+  worker:
+    container_name: worker
+    image: alloranetwork/allora-offchain-node:latest
+    volumes:
+      - ./worker-data:/data
+    working_dir: /data
+    depends_on:
+      inference:
+        condition: service_started
+    env_file:
+      - ./worker-data/env_file
+    entrypoint: ["/node/allora_offchain_node"]
+
+volumes:
+  inference-data:
+  worker-data:
